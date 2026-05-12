@@ -6,7 +6,7 @@ import './assets/index.css';
 
 const MainApp = () => {
     const { account, connectWallet } = useContext(Web3Context);
-    const [role, setRole] = useState('patient');
+    const [role, setRole] = useState(null);
     const [userSbtType, setUserSbtType] = useState(null);
 
     React.useEffect(() => {
@@ -74,22 +74,26 @@ const MainApp = () => {
                     )
                 ) : (
                     <div>
-                        {userSbtType === 0 && (
-                            <div className="flex justify-center bg-white rounded-lg shadow-sm p-2 mb-6 max-w-sm mx-auto">
-                                <button
-                                    onClick={() => setRole('patient')}
-                                    className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'patient' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                    Patient
-                                </button>
-                                <button
-                                    onClick={() => setRole('doctor')}
-                                    className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'doctor' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                    Doctor
-                                </button>
+                        {!role ? (
+                            <div className="bg-white shadow-xl rounded-2xl p-10 text-center max-w-lg mx-auto animate-fade-in-up">
+                                <h2 className="text-2xl font-bold mb-4">Select Your Role</h2>
+                                <p className="text-gray-600 mb-8">You do not have a verified Identity SBT. Please select how you want to proceed for this session.</p>
+                                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                    <button
+                                        onClick={() => setRole('patient')}
+                                        className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg transition transform hover:-translate-y-1">
+                                        I am a Patient
+                                    </button>
+                                    <button
+                                        onClick={() => setRole('doctor')}
+                                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg transition transform hover:-translate-y-1">
+                                        I am a Doctor
+                                    </button>
+                                </div>
                             </div>
+                        ) : (
+                            role === 'patient' ? <PatientDashboard /> : <DoctorDashboard />
                         )}
-
-                        {role === 'patient' ? <PatientDashboard /> : <DoctorDashboard />}
                     </div>
                 )}
             </div>
