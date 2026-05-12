@@ -1,19 +1,46 @@
 import React, { useContext, useState } from 'react';
-import { Web3Provider, Web3Context } from './Web3Context';
-import PatientDashboard from './PatientDashboard';
-import DoctorDashboard from './DoctorDashboard';
-import './index.css';
+import { Web3Provider, Web3Context } from './context/Web3Context';
+import PatientDashboard from './pages/PatientDashboard';
+import DoctorDashboard from './pages/DoctorDashboard';
+import './assets/index.css';
 
 const MainApp = () => {
     const { account, connectWallet } = useContext(Web3Context);
     const [role, setRole] = useState('patient');
+    const [userSbtType, setUserSbtType] = useState(null);
+
+    React.useEffect(() => {
+        if (account) {
+            const fetchIdentity = async () => {
+                try {
+                    // Import axios dynamically or at top of file. Let's just use fetch here to avoid modifying imports if we don't have to, 
+                    // or I'll just use fetch since axios is not imported yet.
+                    const response = await fetch(`http://localhost:8080/api/zkp/identity/${account}`);
+                    const data = await response.json();
+                    setUserSbtType(data.identityType);
+                    
+                    if (data.identityType === 1) {
+                        setRole('patient');
+                    } else if (data.identityType === 2) {
+                        setRole('doctor');
+                    }
+                } catch (error) {
+                    console.error("Error fetching identity:", error);
+                    setUserSbtType(0);
+                }
+            };
+            fetchIdentity();
+        } else {
+            setUserSbtType(null);
+        }
+    }, [account]);
 
     return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-sans p-4 md:p-10">
+        <div className="min-h-screen text-gray-800 font-sans p-4 md:p-10 bg-transparent">
             <div className="max-w-4xl mx-auto">
-                <header className="text-center mb-10">
-                    <h1 className="text-4xl font-extrabold text-blue-900 tracking-tight">Decentralized EHR System</h1>
-                    <p className="text-gray-500 mt-2">Powered by Polygon, IPFS, & Spring Boot</p>
+                <header className="text-center mb-12 py-8 bg-white/40 backdrop-blur-md rounded-3xl shadow-sm border border-white/60">
+                    <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-700 tracking-tight drop-shadow-sm">Decentralized EHR</h1>
+                    <p className="text-gray-600 mt-3 font-medium tracking-wide">Powered by Polygon, IPFS, & Spring Boot</p>
                 </header>
 
                 {!account ? (
@@ -47,18 +74,20 @@ const MainApp = () => {
                     )
                 ) : (
                     <div>
-                        <div className="flex justify-center bg-white rounded-lg shadow-sm p-2 mb-6 max-w-sm mx-auto">
-                            <button
-                                onClick={() => setRole('patient')}
-                                className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'patient' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                Patient
-                            </button>
-                            <button
-                                onClick={() => setRole('doctor')}
-                                className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'doctor' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
-                                Doctor
-                            </button>
-                        </div>
+                        {userSbtType === 0 && (
+                            <div className="flex justify-center bg-white rounded-lg shadow-sm p-2 mb-6 max-w-sm mx-auto">
+                                <button
+                                    onClick={() => setRole('patient')}
+                                    className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'patient' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    Patient
+                                </button>
+                                <button
+                                    onClick={() => setRole('doctor')}
+                                    className={`flex-1 py-2 text-center rounded-md transition font-semibold ${role === 'doctor' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'}`}>
+                                    Doctor
+                                </button>
+                            </div>
+                        )}
 
                         {role === 'patient' ? <PatientDashboard /> : <DoctorDashboard />}
                     </div>
