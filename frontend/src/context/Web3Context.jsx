@@ -32,7 +32,19 @@ export const Web3Provider = ({ children }) => {
         }
     };
 
-    const disconnectWallet = () => {
+    const disconnectWallet = async () => {
+        try {
+            if (window.ethereum) {
+                // EIP-2255: Request to revoke permissions, forces MetaMask to disconnect the site
+                await window.ethereum.request({
+                    method: "wallet_revokePermissions",
+                    params: [{ eth_accounts: {} }]
+                });
+            }
+        } catch (error) {
+            console.error("Error revoking MetaMask permissions:", error);
+        }
+        
         setAccount(null);
         setContract(null);
         setWeb3(null);
