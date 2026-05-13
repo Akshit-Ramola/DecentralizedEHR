@@ -12,9 +12,7 @@ const PatientDashboard = () => {
     const [deletingIndex, setDeletingIndex] = useState(null);
 
     // In a real dApp, access requests might be stored in a traditional DB or via off-chain IPFS notifications.
-    const [requests, setRequests] = useState([
-        { id: 1, doctorAddress: "0x123DoctorMockAddress456def789" }
-    ]);
+    const [requests, setRequests] = useState([]);
 
     const [identityType, setIdentityType] = useState(0); // 0=NONE, 1=PATIENT, 2=DOCTOR
     const [emergencyAlert, setEmergencyAlert] = useState(null);
@@ -33,14 +31,35 @@ const PatientDashboard = () => {
                     checkEmergencyStatus(data.doctor);
                 }
             }
+            if (e.key === 'access_request' && e.newValue) {
+                const data = JSON.parse(e.newValue);
+                if (data.patient.toLowerCase() === account.toLowerCase()) {
+                    setRequests(prev => {
+                        if(prev.some(req => req.doctorAddress.toLowerCase() === data.doctor.toLowerCase())) return prev;
+                        return [...prev, { id: Date.now(), doctorAddress: data.doctor }];
+                    });
+                }
+            }
         };
 
-        // Also check on mount if there's an active one
+        // Also check on mount if there's an active emergency request
         const activeReq = localStorage.getItem('emergency_request');
         if (activeReq) {
             const data = JSON.parse(activeReq);
             if (data.patient.toLowerCase() === account?.toLowerCase()) {
                 checkEmergencyStatus(data.doctor);
+            }
+        }
+
+        // Also check on mount for standard access request
+        const normalReq = localStorage.getItem('access_request');
+        if (normalReq) {
+            const data = JSON.parse(normalReq);
+            if (data.patient.toLowerCase() === account?.toLowerCase()) {
+                setRequests(prev => {
+                    if(prev.some(req => req.doctorAddress.toLowerCase() === data.doctor.toLowerCase())) return prev;
+                    return [...prev, { id: Date.now(), doctorAddress: data.doctor }];
+                });
             }
         }
 

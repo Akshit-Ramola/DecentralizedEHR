@@ -137,9 +137,16 @@ const DoctorDashboard = () => {
     }, [emergencyTimer]);
 
     const requestAccess = () => {
-        // Trigger generic Off-Chain API Call to notify the patient
+        if (!patientAddress) return alert("Please enter a patient address first.");
+        
+        // Trigger generic Off-Chain notification via LocalStorage for cross-tab communication
+        localStorage.setItem('access_request', JSON.stringify({
+            doctor: account,
+            patient: patientAddress,
+            timestamp: Date.now()
+        }));
+        
         alert("Access request sent to Patient's Dashboard: " + patientAddress);
-        // e.g., axios.post('http://localhost:8080/api/requests', { doctor: account, patient: patientAddress })
     };
 
     return (
