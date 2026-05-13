@@ -32,6 +32,7 @@ const MainApp = () => {
             fetchIdentity();
         } else {
             setUserSbtType(null);
+            setRole(null);
         }
     }, [account]);
 
