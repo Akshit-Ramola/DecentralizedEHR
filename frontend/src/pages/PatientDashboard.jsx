@@ -10,6 +10,8 @@ const PatientDashboard = () => {
     const [recordType, setRecordType] = useState('Laboratory Results');
     const [isUploading, setIsUploading] = useState(false);
     const [deletingIndex, setDeletingIndex] = useState(null);
+    const [successMsg, setSuccessMsg] = useState('');
+    const [approvedDoctors, setApprovedDoctors] = useState([]);
 
     // In a real dApp, access requests might be stored in a traditional DB or via off-chain IPFS notifications.
     const [requests, setRequests] = useState([]);
@@ -61,6 +63,12 @@ const PatientDashboard = () => {
                     return [...prev, { id: Date.now(), doctorAddress: data.doctor }];
                 });
             }
+        }
+
+        // Load Approved Doctors list for this account
+        const savedApproved = localStorage.getItem(`approved_doctors_${account}`);
+        if (savedApproved) {
+            setApprovedDoctors(JSON.parse(savedApproved));
         }
 
         window.addEventListener('storage', handleStorage);
@@ -166,11 +174,51 @@ const PatientDashboard = () => {
         if (!contract) return alert("Contract not loaded");
         try {
             await contract.methods.grantAccess(doctorAddr, durationSeconds, roleId).send({ from: account });
-            alert(`Smart Contract Tx Success: Access Granted to ${doctorAddr}`);
-            setRequests(requests.filter(req => req.doctorAddress !== doctorAddr));
+            
+            // Show Success Message
+            setSuccessMsg(`✅ Successfully granted access to ${doctorAddr.substring(0, 10)}...`);
+            setTimeout(() => setSuccessMsg(''), 5000);
+
+            // Update the request card to show "Approved"
+            setRequests(prev => prev.map(req => 
+                req.doctorAddress === doctorAddr ? { ...req, status: 'approved' } : req
+            ));
+
+            // Wait 2.5 seconds before moving it to the approved list
+            setTimeout(() => {
+                setRequests(prev => prev.filter(req => req.doctorAddress !== doctorAddr));
+                
+                // Update Approved Doctors Panel
+                const newDoctor = { address: doctorAddr, role: roleId, timestamp: Date.now() };
+                setApprovedDoctors(prev => {
+                    // Check if already in the list to avoid duplicates
+                    if (prev.some(d => d.address.toLowerCase() === doctorAddr.toLowerCase())) return prev;
+                    const updated = [...prev, newDoctor];
+                    localStorage.setItem(`approved_doctors_${account}`, JSON.stringify(updated));
+                    return updated;
+                });
+            }, 2500);
+
         } catch (error) {
             console.error(error);
             alert("Transaction failed or was rejected.");
+        }
+    };
+
+    const handleRevokeAccess = async (doctorAddr) => {
+        if (!window.confirm("Are you sure you want to revoke this doctor's access?")) return;
+        if (!contract) return;
+        try {
+            await contract.methods.revokeAccess(doctorAddr).send({ from: account });
+            alert("Access revoked successfully.");
+            setApprovedDoctors(prev => {
+                const updated = prev.filter(doc => doc.address.toLowerCase() !== doctorAddr.toLowerCase());
+                localStorage.setItem(`approved_doctors_${account}`, JSON.stringify(updated));
+                return updated;
+            });
+        } catch (error) {
+            console.error(error);
+            alert("Failed to revoke access.");
         }
     };
 
@@ -194,6 +242,14 @@ const PatientDashboard = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-fade-in p-6">
+            {/* Success Message Banner */}
+            {successMsg && (
+                <div className="bg-emerald-900/90 border border-emerald-500 text-emerald-100 px-6 py-4 rounded-2xl shadow-lg animate-fade-in-up font-medium flex items-center gap-3">
+                    <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    {successMsg}
+                </div>
+            )}
+
             {/* Critical Emergency Banner */}
             {emergencyAlert && (
                 <div className="bg-red-900/90 border-2 border-red-500 rounded-3xl p-8 shadow-[0_0_50px_rgba(239,68,68,0.5)] animate-pulse relative overflow-hidden">
@@ -335,35 +391,73 @@ const PatientDashboard = () => {
                                 <div className="mb-4">
                                     <span className="text-sm font-mono truncate mr-4 bg-slate-800 px-3 py-1 rounded-md border border-orange-800/50 text-orange-200">{req.doctorAddress}</span>
                                 </div>
-                                <div className="flex flex-col md:flex-row gap-3 w-full">
-                                    <select id={`role-${req.doctorAddress}`} className="bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-500">
-                                        <option value="1">Pharmacist</option>
-                                        <option value="2">General Practitioner</option>
-                                        <option value="3">Surgeon (Full Access)</option>
-                                    </select>
-                                    <select id={`duration-${req.doctorAddress}`} className="bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-500">
-                                        <option value="86400">24 Hours</option>
-                                        <option value="604800">7 Days</option>
-                                        <option value="0">Permanent</option>
-                                    </select>
-                                    <button onClick={() => {
-                                        const role = document.getElementById(`role-${req.doctorAddress}`).value;
-                                        const duration = document.getElementById(`duration-${req.doctorAddress}`).value;
-                                        handleGrantAccess(req.doctorAddress, duration, role);
-                                    }}
-                                        className="flex-1 md:flex-none px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 font-bold border border-green-500">
-                                        Approve
-                                    </button>
-                                    <button onClick={() => handleRejectAccess(req.doctorAddress)}
-                                        className="flex-1 md:flex-none px-5 py-2 bg-slate-800 text-slate-200 border border-slate-600 rounded-xl hover:bg-slate-700 hover:text-red-400 transition-colors font-bold">
-                                        Reject
+                                {req.status === 'approved' ? (
+                                    <div className="bg-emerald-900/40 border border-emerald-500/50 text-emerald-400 font-bold rounded-xl px-5 py-3 flex items-center justify-center gap-2 w-full animate-pulse">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                        Request Approved! Adding to Approved Doctors...
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col md:flex-row gap-3 w-full">
+                                        <select id={`role-${req.doctorAddress}`} className="bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-500">
+                                            <option value="1">Pharmacist</option>
+                                            <option value="2">General Practitioner</option>
+                                            <option value="3">Surgeon (Full Access)</option>
+                                        </select>
+                                        <select id={`duration-${req.doctorAddress}`} className="bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-500">
+                                            <option value="86400">24 Hours</option>
+                                            <option value="604800">7 Days</option>
+                                            <option value="0">Permanent</option>
+                                        </select>
+                                        <button onClick={() => {
+                                            const role = document.getElementById(`role-${req.doctorAddress}`).value;
+                                            const duration = document.getElementById(`duration-${req.doctorAddress}`).value;
+                                            handleGrantAccess(req.doctorAddress, duration, role);
+                                        }}
+                                            className="flex-1 md:flex-none px-5 py-2 bg-green-600 text-white rounded-xl hover:bg-green-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 font-bold border border-green-500">
+                                            Approve
+                                        </button>
+                                        <button onClick={() => handleRejectAccess(req.doctorAddress)}
+                                            className="flex-1 md:flex-none px-5 py-2 bg-slate-800 text-slate-200 border border-slate-600 rounded-xl hover:bg-slate-700 hover:text-red-400 transition-colors font-bold">
+                                            Reject
+                                        </button>
+                                    </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-slate-500 italic">No pending requests.</p>
+                )}
+            </div>
+
+            {/* Approved Doctors Panel */}
+            <div className="animate-fade-in-up mt-10" style={{ animationDelay: '400ms' }}>
+                <h3 className="text-xl font-bold mb-4 border-b border-slate-700/60 pb-3 flex items-center gap-2 text-emerald-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    Approved Doctors
+                </h3>
+                {approvedDoctors.length > 0 ? (
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {approvedDoctors.map((doc, idx) => (
+                            <li key={idx} className="bg-slate-800/80 p-5 rounded-2xl border border-emerald-900/50 shadow-sm flex flex-col gap-2">
+                                <span className="text-sm font-mono truncate text-emerald-300 bg-slate-900/50 p-2 rounded-lg border border-slate-700">{doc.address}</span>
+                                <div className="text-xs text-slate-400 flex justify-between items-center">
+                                    <span>
+                                        Role ID: <span className="text-white font-bold">{doc.role}</span> &bull; 
+                                        Approved At: {new Date(doc.timestamp).toLocaleString()}
+                                    </span>
+                                    <button 
+                                        onClick={() => handleRevokeAccess(doc.address)}
+                                        className="text-red-400 hover:text-red-300 font-semibold px-3 py-1 bg-red-900/30 rounded-lg border border-red-800/50 hover:bg-red-800/50 transition-colors"
+                                    >
+                                        Revoke
                                     </button>
                                 </div>
                             </li>
                         ))}
                     </ul>
                 ) : (
-                    <p className="text-slate-500 italic">No pending requests.</p>
+                    <p className="text-slate-500 italic">No doctors have been granted access yet.</p>
                 )}
             </div>
         </div>
